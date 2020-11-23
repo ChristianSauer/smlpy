@@ -14,7 +14,7 @@ def test_aborts_if_no_start_sequence():
 
 def test_works_on_basic():
     reader = sml_reader.SmlReader("1b1b1b1b0101010171011b1b1b1b1a000337") # list with one empty element
-    states= [sml_reader.SmlState.VERSION, sml_reader.SmlState.MSB_BODY, sml_reader.SmlState.CLOSED]
+    states= [sml_reader.SmlState.VERSION, sml_reader.SmlState.MSB_BODY, sml_reader.SmlState.MESSAGE, sml_reader.SmlState.CLOSED]
 
     def helper(state, data):
         assert states[0] == state, data
