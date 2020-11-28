@@ -3,7 +3,6 @@ import typing
 import yaml
 import pathlib
 from smlpy import errors, units
-from enum import Enum
 from loguru import logger
 import datetime
 
@@ -32,26 +31,6 @@ _integer_hex_marker = {
     "56": (5, True),  # this unit is not described by the current standards, but my ehz-k reports them
     "59": (8, True),
 }
-
-
-class SmlState(Enum):
-    START_SEQUENCE = 0
-    VERSION = 1
-    MSB_BODY = 2
-    MESSAGE = 3
-    PublicOpenResponse = 4
-    END_SEQUENCE = 98
-    END_MSG = 99
-    CLOSED = 100
-
-
-class SmlMessage:
-    def __init__(self, type: str):
-        self.type = type
-        self.data = []
-
-    def __repr__(self):
-        return f"{self.type} with {len(self.data)} entries"
 
 
 class SmlMessageEnvelope:
@@ -130,26 +109,12 @@ class SmlFile:
         return f"SmlFile with {len(self.data)} entries"
 
 
-class SmlFile2:
-    def __init__(self):
-        self.data = []
-
-    data: typing.List[SmlMessageEnvelope]
-
-    def __repr__(self):
-        return f"SmlFile with {len(self.data)} entries"
-
-
 class SmlReader:
 
     def __init__(self, data: str):
         self._data = data
         self._pointer = 0
-        self._state = SmlState.START_SEQUENCE
-        self.call_on_state_change = lambda state, dt: logger.info(f"State change: {dt} -> {state}")
-        self.has_public_open_response_data = False
-        self.message = SmlFile()
-        self.sml_file = SmlFile2()
+        self.sml_file = SmlFile()
 
         if len(data) < DATA_MIN_LEN:
             raise AttributeError("data is to short!")
@@ -178,10 +143,6 @@ class SmlReader:
             raise Exception(f"attempted to read position {next_pos}, but the sml file is only {len_data} long")
         rv = self._data[self._pointer:next_pos]
         return rv
-
-    def read2(self):
-        while self._state != SmlState.CLOSED:
-            self.handle_state2()
 
     def read_sml_file(self):
         if self._pointer != 0:
@@ -330,144 +291,6 @@ class SmlReader:
         else:
             raise Exception(f"unknown type int for SML_Time: {type_int}")
 
-    def handle_state2(self):
-        if self._state == SmlState.START_SEQUENCE:
-            data = self._advance(len(msg_start))
-            if data == msg_start:
-                self._state = SmlState.VERSION
-            else:
-                raise errors.InvalidStartSequence(msg_start, data)
-
-        elif self._state == SmlState.VERSION:
-            data = self._advance(len(msg_version_1))
-            if data == msg_version_1:
-                self._state = SmlState.MSB_BODY
-            else:
-                raise errors.InvalidVersion(msg_version_1, data)
-
-        elif self._state == SmlState.MSB_BODY:
-            # we expect a message body
-            data = self._advance(2)
-            if data.startswith("76"):
-                self._state = SmlState.MESSAGE
-            else:
-                raise Exception(f"unable to handle body: {data} from position {self._pointer}")
-            # todo handle 8 special case
-        elif self._state == SmlState.MESSAGE:
-            # first byte included the size
-            # a message has transactionId, groupNo, abortOnError, messagebody, crc16, endOfSmlMsg ,
-            # see https://www.bsi.bund.de/SharedDocs/Downloads/DE/BSI/Publikationen/TechnischeRichtlinien/TR03109/TR-03109-1_Anlage_Feinspezifikation_Drahtgebundene_LMN-Schnittstelle_Teilb.pdf?__blob=publicationFile page17
-
-            len_transaction_id = hex_to_int_byte(
-                self._advance(2)) - 2  # -2 because the first byte is included in the length
-            self._advance(len_transaction_id)
-
-            self._advance(4)  # ignore groupNo
-            self._advance(4)  # ignore abortOnError
-
-            data = self._advance(2)
-
-            if data != "72":  # messagebody
-                raise Exception("invalid state, should be messagebody")
-
-            data = self._advance(len(OPEN_RESPONSE))
-
-            # if data != OPEN_RESPONSE:
-            #    raise Exception("invalid state, should be OPEN_RESPONSE")
-
-            data = self._advance(1)
-
-            self._state = SmlState.PublicOpenResponse if not self.has_public_open_response_data else SmlState.MESSAGE  # todo correct?
-
-            if data == "7" and self._state == SmlState.PublicOpenResponse:
-                self.handle_public_open_response()
-                self._state = SmlState.MSB_BODY
-            elif data == "7":
-                next_list = SmlMessage("SML_GetList.Res")
-                self.message.data.append(next_list)
-                # self.handle_list(next_list)
-                self.handle_getlist(next_list)
-                self._handle_value_field()  # listSignature
-                self._handle_value_field()  # actGatewayTime
-                self._advance_until_message_end()  # todo this is WRONG to do,
-                self._state = SmlState.MSB_BODY
-            else:
-                raise Exception("invalid state, should be OPEN LIST")
-
-
-        else:
-            raise Exception(f"unknown state {self._state} from position {self._pointer}")
-
-        return None
-
-    def handle_public_open_response(self):
-        """
-        public open response is a weird mandatory header message
-        :return:
-        """
-        list_length = self._advance(1)  # second nibble contains the length of the entry:
-        list_length = hex_to_int(list_length)  # in elements
-        logger.debug(f"List with {list_length} elements")
-        if list_length != 6:
-            raise Exception("public open response should have length 6")
-            # empty entry, ignore
-        else:
-            data = SmlMessage("SML_PublicOpen.Res")
-
-            for i in range(list_length):
-                self._handle_data_field(data)
-
-            self._advance_until_message_end()
-            self.message.data.append(data)
-
-        self.has_public_open_response_data = True
-
-    def handle_list(self, data_container: SmlMessage, list_length: typing.Optional[str] = None, ):
-        if not list_length:
-            list_length = self._advance(1)  # second nibble contains the length of the entry:
-
-        list_length = hex_to_int(list_length)  # in elements
-        logger.debug(f"List with {list_length} elements")
-        if list_length <= 1:
-            logger.info("list empty")
-            # empty entry, ignore
-        if list_length == 2:
-            # special case: runtime! e.g. time this thing runs
-            data_container.type = "SML_Time"
-            self._extract_runtime_information(data_container)
-        else:
-            for _ in range(list_length):
-                self._handle_data_field(data_container)
-
-    def _handle_data_field(self, data_container):
-        entry = self._advance(2)
-
-        if entry == "01":  # optional / empty entry
-            data_container.data.append(None)
-        elif entry in ["62", "63", "65", "69"]:  # unsigned int
-            advance = {
-                "62": 1,
-                "63": 2,
-                "65": 3,
-                "69": 4
-            }
-            data = self._advance(advance[entry])
-            value = int.from_bytes(bytes.fromhex(data), "big", signed=False)
-            data_container.data.append(value)
-        elif entry in ["52", "53", "55", "59"]:  # int
-            raise NotImplementedError()
-        elif entry in ["42"]:  # bool
-            raise NotImplementedError()
-        elif entry[0] == "7":  # list
-            inner_data = SmlMessage("SML_GetList.Res")
-            data_container.data.append(inner_data)
-            self.handle_list(inner_data, entry[1])
-        else:
-            # octet
-
-            string = self._handle_octet_string(entry)
-            data_container.data.append(string)
-
     def _handle_value_field(self):
         entry = self._advance(2)
 
@@ -510,20 +333,6 @@ class SmlReader:
             value = octet_to_str(data)
             return value
 
-    def _extract_runtime_information(self, data_container: SmlMessage):
-        data = self._advance(4)  # ignore secIndex for now, always assume a linux timestamp
-        data_container.data.append(data)
-        type_info = self._advance(2)
-        if type_info != "65":
-            raise Exception(f"{self._pointer}: here should be a uint32 (hex: 65) but it is {type_info}")
-        data = self._advance(4 * 2)
-        value = int.from_bytes(bytes.fromhex(data), "big", signed=False)
-        # runtime_days = value / 60 / 60 / 24
-
-        # data_container.data["runtime_days"] = runtime_days
-        # data_container.data["runtime_seconds"] = value
-        data_container.data.append(value)
-
     def __repr__(self):
         if self._pointer > 10:
             return f"{self._data[self._pointer - 10:self._pointer]} || {' '.join(chunks(self._data[self._pointer:], 2))}"
@@ -534,30 +343,6 @@ class SmlReader:
         data = ""
         while data != "00":
             data = self._advance(2)
-
-    def handle_getlist(self, next_list):
-        list_length = self._advance(1)  # second nibble contains the length of the entry:
-        if list_length != "7":
-            raise Exception("unexpected length!")
-
-        client_id = self._handle_octet_string(self._advance(2))
-        server_id = self._handle_octet_string(self._advance(2))
-        list_name = self._handle_octet_string(self._advance(2))
-
-        next_list.data.append(client_id)
-        next_list.data.append(server_id)
-        next_list.data.append(list_name)
-
-        data = self._advance(2)
-        if data != "72":
-            raise Exception("unexpected fierld, should be actSensorTime!")
-
-        data_container = SmlMessage("SML_Time")
-        self._extract_runtime_information(data_container)
-        next_list.data.append(data_container)
-
-        values = self._handle_val_list()
-        next_list.data.append(values)
 
     def _handle_val_list(self) -> typing.List[SmlValListEntry]:
         values = []
