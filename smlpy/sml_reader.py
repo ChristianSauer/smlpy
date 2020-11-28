@@ -146,8 +146,14 @@ class SmlReader:
                 self.message.data.append(next_list)
                 # self.handle_list(next_list)
                 self.handle_getlist(next_list)
+                self._handle_value_field()  # listSignature
+                self._handle_value_field()  # actGatewayTime
+                self._advance_until_message_end() # todo this is WRONG to do,
+                self._state = SmlState.MSB_BODY
             else:
                 raise Exception("invalid state, should be OPEN LIST")
+
+
         else:
             raise Exception(f"unknown state {self._state} from position {self._pointer}")
 
@@ -250,7 +256,7 @@ class SmlReader:
             second = hex_to_binary_with_leading_zeroes(str(int(next_byte)))
             binary = f"{first}{second}"
             length = int(binary, 2)
-            data = self._advance(length * 2 - 2)
+            data = self._advance(length * 2 - 4)
         else:
             length = hex_to_int_byte(entry)
             data = self._advance(length - 2)
