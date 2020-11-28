@@ -6,3 +6,8 @@ class InvalidStartSequence(Exception):
 class InvalidVersion(Exception):
     def __init__(self, expected, actual):
         super(InvalidVersion, self).__init__(f"the version sequence was not '{expected}' but '{actual}'")
+
+
+class InvalidData(Exception):
+    def __init__(self, position, expected, actual):
+        super(InvalidData, self).__init__(f"the hex sequence at {position} was not '{expected}' but '{actual}'")
