@@ -41,6 +41,9 @@ class SmlMessageEnvelope:
         self._abort_on_error = ""
         self._crc16 = ""
 
+    def __repr__(self):
+        return f"Envelope containing: {self.message_body}"
+
 
 class SmlMessageBody:
     """purely a dummy"""
@@ -129,7 +132,7 @@ class SmlFile:
 class SmlReader:
 
     def __init__(self, data: str):
-        self._data = data
+        self._data = data.lower().strip()
         self._pointer = 0
         self.sml_file = SmlFile()
 
@@ -164,19 +167,25 @@ class SmlReader:
     def read_sml_file(self):
         if self._pointer != 0:
             raise Exception("can only called once")
+        count = 0
+        while True:
+            count += 1
+            logger.info("reading message {count}", count=count)
+            self._advance_and_compare(msg_start)  # start sequence looks ok
 
-        self._advance_and_compare(msg_start)  # start sequence looks ok
+            self._advance_and_compare(msg_version_1)  # version sequence looks ok
 
-        self._advance_and_compare(msg_version_1)  # version sequence looks ok
+            while self._peek(1) == "7":  # a list of something
+                self._read_message()
 
-        while self._peek(1) == "7":  # a list of something
-            self._read_message()
+            self._advance_over_zero()
 
-        self._advance_and_compare(msg_end)
-        # everything else is crc
-        self._pointer = len(self._data)
+            self._advance_and_compare(msg_end)
 
-        return self.sml_file
+            self._advance(8)  # should be the crc
+
+            if self._pointer == len(self._data):
+                return self.sml_file
 
     def get_value_by_obis_id(self, obis_id: str):
         """searches for a val list entry which contains a obis number in the form 1-b:1.8.e
@@ -420,6 +429,15 @@ class SmlReader:
             return None
         length = hex_to_int(data[1])
         return self._advance((length - 1) * 2)
+
+    def _advance_over_zero(self):
+        while True:
+            data = self._peek(2)
+
+            if data == "00":
+                self._advance(2)
+            else:
+                break
 
 
 def hex_to_int_byte(byte: str) -> int:
