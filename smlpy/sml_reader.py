@@ -35,18 +35,15 @@ _integer_hex_marker = {
 
 class SmlMessageEnvelope:
     def __init__(self):
-        self.type = ""
         self.transaction_id = ""
         self.group_no = ""
         self.message_body: SmlMessageBody = SmlMessageBody()
         self._abort_on_error = ""
         self._crc16 = ""
 
-    def __repr__(self):
-        return f"{self.type}"
-
 
 class SmlMessageBody:
+    """purely a dummy"""
     pass
 
 
@@ -59,6 +56,23 @@ class SmlValListEntry:
         self.scaler = None
         self.value = None
         self.value_signature = None
+
+    def get_scaled_value(self):
+        if self.value is None or self.scaler is None:
+            raise errors.MissingValueInfoException()
+        return self.value * 10 ** self.scaler
+
+    def get_obis_explanation(self):
+        result = obis_t_kennzahlen.get(self.obj_name, "None")
+        return result
+
+    def __repr__(self):
+        try:
+            value = self.get_scaled_value()
+        except errors.MissingValueInfoException:
+            value = None
+
+        return f"{self.obj_name} {self.get_obis_explanation()}: {value}  {self.unit}"
 
 
 class SmlPublicCloseRes:
@@ -97,6 +111,9 @@ class SmlTime:
             self.datetime = datetime.datetime.utcnow() - datetime.timedelta(seconds=elapsed_seconds)
         else:
             raise AttributeError("choose epoch or datetime")
+
+    def __repr__(self):
+        return f"{self.datetime}"
 
 
 class SmlFile:
@@ -161,6 +178,12 @@ class SmlReader:
 
         return self.sml_file
 
+    def get_value_by_obis_id(self, obis_id: str):
+        """searches for a val list entry which contains a obis number in the form 1-b:1.8.e
+        you can replace b and e with an actual value or keep the placeholders in
+        which case you get all matching messages
+        """
+
     def _read_message(self):
         message = SmlMessageEnvelope()
         self.sml_file.data.append(message)
@@ -171,6 +194,7 @@ class SmlReader:
         message.group_no = self._handle_value_field()
         message.abort_on_error = self._handle_value_field()
         self._read_message_body(message)
+
         message.crc_16 = self._handle_value_field()
         self._advance_and_compare("00")  # message end
 
@@ -179,7 +203,7 @@ class SmlReader:
         list_length = hex_to_int(self._advance(1))
         assert list_length == n, f"unexpected length {list_length} should be {n}"
 
-    def _read_message_body(self, message) -> SmlMessageEnvelope:
+    def _read_message_body(self, message):
         """
         SML_Message.SML_MessageBody is a choice. A choice is represented as a list and has a unsigned int field as
         the first element, showing the choice and the second one is a list containing the choice data
@@ -201,7 +225,7 @@ class SmlReader:
             inner_message.client_id = self._handle_value_field()
             inner_message.req_file_id = self._handle_value_field()
             inner_message.server_id = self._handle_value_field()
-            inner_message.ref_time = self.handle_sml_time()
+            inner_message.ref_time = self._handle_sml_time()
             inner_message.sml_version = self._handle_value_field()
             message.message_body = inner_message
             return message
@@ -212,6 +236,7 @@ class SmlReader:
             inner_message = SmlPublicCloseRes()
             self._assert_next_element_is_list_of_length(1)
             inner_message.global_signature = self._handle_value_field()
+            message.message_body = inner_message
             return message
 
         if type_int == 768:
@@ -243,10 +268,11 @@ class SmlReader:
             inner_message.client_id = self._handle_value_field()
             inner_message.server_id = self._handle_value_field()
             inner_message.list_name = self._handle_value_field()
-            inner_message.act_sensor_time = self.handle_sml_time()
+            inner_message.act_sensor_time = self._handle_sml_time()
             inner_message.val_list = self._handle_val_list()
-            inner_message.list_signature = self._handle_value_field() # even if this has a value its an string
-            inner_message.act_gateway_time = self.handle_sml_time()
+            inner_message.list_signature = self._handle_value_field()  # even if this has a value its an string
+            inner_message.act_gateway_time = self._handle_sml_time()
+            message.message_body = inner_message
             return message
 
         if type_int == 2048:
@@ -269,7 +295,7 @@ class SmlReader:
 
         raise Exception(f"unknown type int: {type_int}")
 
-    def handle_sml_time(self) -> typing.Optional[SmlTime]:
+    def _handle_sml_time(self) -> typing.Optional[SmlTime]:
         data = self._advance(2)
         if data == "01":
             return None
@@ -327,11 +353,15 @@ class SmlReader:
 
         if data.lower().endswith("ff") and len(data) == 12:
             # most likely a weird obis number
-            obis = f"{hex_to_int(data[0:2])}-{hex_to_int(data[2:4])}.{hex_to_int(data[4:6])}.{hex_to_int(data[6:8])}.{int(hex_to_int(data[8:]) / 255)}"
+            obis = self._hex_to_obis(data)
             return obis
         else:
             value = octet_to_str(data)
             return value
+
+    def _hex_to_obis(self, data):
+        obis = f"{hex_to_int(data[0:2])}-{hex_to_int(data[2:4])}.{hex_to_int(data[4:6])}.{hex_to_int(data[6:8])}.{int(hex_to_int(data[8:]) / 255)}"
+        return obis
 
     def __repr__(self):
         if self._pointer > 10:
