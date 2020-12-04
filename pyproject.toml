@@ -1,8 +1,18 @@
 [tool.poetry]
 name = "smlpy"
 version = "0.1.0"
-description = ""
+description = """smlpy enables reading of smart meter language (sml) data from a smart power meter.
+You need a working IR-reading device for this, e.g. https://shop.weidmann-elektronik.de/index.php?page=product&info=24
+which must be connected to an USB port.
+
+Please note that this library only supports a small part of the SML-spec,
+especially the sending part is intentionally omitted
+"""
 authors = ["christian.sauer <christian.sauer@codecentric.de>"]
+license =   "MIT"
+repository = "https://github.com/ChristianSauer/smlpy"
+keywords = ["sml", "smart meter language", "stromzähler", "obis-t"]
+classifiers = ["Development Status :: 4 - Beta", "Topic :: Home Automation"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
