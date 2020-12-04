@@ -2,6 +2,7 @@ import pathlib
 
 import pytest
 
+import smlpy
 from smlpy import sml_reader
 
 raw_sml = "1b1b1b1b01010101760700110bf402df620062007263010176010107001103c500f50b0901454d4800007514c401016375f3007" \
@@ -28,7 +29,7 @@ test_files = get_test_files()
 
 
 def test_own_data():
-    reader = sml_reader.SmlReader(raw_sml)
+    reader = smlpy.SmlReader(raw_sml)
     reader.read_sml_file()
 
     assert len(reader.sml_file.data) == 3
