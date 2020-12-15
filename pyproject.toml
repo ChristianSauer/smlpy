@@ -15,9 +15,13 @@ keywords = ["sml", "smart meter language", "stromzähler", "obis-t"]
 classifiers = ["Development Status :: 4 - Beta", "Topic :: Home Automation"]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.7"
 loguru = "^0.5.3"
 pyyaml = "^5.3.1"
+pyserial = "^3.5"
+pyserial-asyncio = "^0.5"
+typing-extensions = "^3.7.4"
+jsons = "^1.3.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.1.2"

@@ -1,12 +1,13 @@
+import datetime
+import pathlib
 import typing
 
+import jsons
+import jsons.decorators
 import yaml
-import pathlib
-from smlpy import errors, units
 from loguru import logger
-import datetime
 
-OPEN_RESPONSE = "630101"
+from smlpy import errors, units
 
 msg_start = "1b1b1b1b"
 msg_end = "1b1b1b1b"
@@ -50,7 +51,7 @@ class SmlMessageBody:
     pass
 
 
-class SmlValListEntry:
+class SmlValListEntry(SmlMessageBody):
     def __init__(self):
         self.obj_name = ""
         self.status = None
@@ -78,12 +79,12 @@ class SmlValListEntry:
         return f"{self.obj_name} {self.get_obis_explanation()}: {value}  {self.unit}"
 
 
-class SmlPublicCloseRes:
+class SmlPublicCloseRes(SmlMessageBody):
     def __init__(self):
         self.global_signature = ""
 
 
-class SmlPublicOpenRes:
+class SmlPublicOpenRes(SmlMessageBody):
     def __init__(self):
         self.codepage = None
         self.client_id = None
@@ -93,7 +94,7 @@ class SmlPublicOpenRes:
         self.sml_version = None
 
 
-class SmlGetListRes:
+class SmlGetListRes(SmlMessageBody):
     def __init__(self):
         self.client_id = None
         self.server_id = None
@@ -119,6 +120,19 @@ class SmlTime:
         return f"{self.datetime}"
 
 
+def sml_val_list_entry_serializer(obj: SmlValListEntry, **kwargs) -> typing.Dict:
+    data = obj.__dict__.copy()
+
+    try:
+        data["scaled_value"] = obj.get_scaled_value()
+    except errors.MissingValueInfoException:
+        data["scaled_value"] = None
+
+    data["obis_explanation"] = obj.get_obis_explanation()
+
+    return data
+
+
 class SmlFile:
     def __init__(self):
         self.data = []
@@ -127,6 +141,10 @@ class SmlFile:
 
     def __repr__(self):
         return f"SmlFile with {len(self.data)} entries"
+
+    def dump_to_json(self):
+        jsons.set_serializer(sml_val_list_entry_serializer, SmlValListEntry)
+        return jsons.dumps(self, jdkwargs= {"indent":2, "ensure_ascii":False})
 
 
 class SmlReader:
@@ -137,7 +155,7 @@ class SmlReader:
         self.sml_file = SmlFile()
 
         if len(data) < DATA_MIN_LEN:
-            raise AttributeError("data is to short!")
+            raise AttributeError(f"data is to short! data: {data}")
 
     def _advance(self, n_chars: int) -> str:
         next_pos = self._pointer + n_chars
@@ -182,7 +200,11 @@ class SmlReader:
 
             self._advance_and_compare(msg_end)
 
-            self._advance(8)  # should be the crc
+            self._advance_and_compare("1a")  # see page 78 Table position 6
+
+            _ = self._advance(2) # no idea what to do with these num_escape_bytes
+
+            _ = self._advance(4)  # should be the crc, checksum
 
             if self._pointer == len(self._data):
                 return self.sml_file

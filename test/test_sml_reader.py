@@ -1,3 +1,4 @@
+import json
 import pathlib
 
 import pytest
@@ -60,4 +61,12 @@ def test_other_power_meters(file):
     reader.read_sml_file()
 
 
+def test_can_dump():
+    reader = smlpy.SmlReader(raw_sml)
+    reader.read_sml_file()
+
+    result = reader.sml_file.dump_to_json()
+    data = json.loads(result)
+    assert len(data["data"]) == 3
+    assert data["data"][1]["message_body"]["val_list"][4]["scaled_value"] == 8571286.200000001
 
