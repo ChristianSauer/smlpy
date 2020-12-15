@@ -1,4 +1,4 @@
-# SMLPY - painless reading of power meters
+# SMLPY - monitor your power meter
 
 ## What is it?
 smlpy enables reading of smart meter language (sml) data from a smart power meter ("Stromzähler").
@@ -13,7 +13,8 @@ especially the sending part is intentionally omitted
 
 ## How to use it?
 
-Todo
+Usage is simple:
+
 
 
 ### Example data
