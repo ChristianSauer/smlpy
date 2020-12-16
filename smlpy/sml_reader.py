@@ -15,7 +15,7 @@ msg_version_1 = "01010101"
 
 DATA_MIN_LEN = len(msg_start) + len(msg_version_1) + len(msg_end) + 8  # crc length etc.
 
-obis_path = pathlib.Path(__file__).parent / "../obis_t_kennzahlen.yaml"
+obis_path = pathlib.Path(__file__).parent / "obis_t_kennzahlen.yaml"
 
 with obis_path.open() as f:
     obis_t_kennzahlen = yaml.safe_load(f)["kennzahlen"]
@@ -161,7 +161,7 @@ class SmlReader:
         next_pos = self._pointer + n_chars
         len_data = len(self._data)
         if next_pos > len_data:
-            raise Exception(f"attempted to read position {next_pos}, but the sml file is only {len_data} long")
+            raise errors.DataMissingException(next_pos, len_data)
         rv = self._data[self._pointer:next_pos]
         self._pointer = next_pos
         return rv
@@ -178,13 +178,14 @@ class SmlReader:
         next_pos = self._pointer + n_chars
         len_data = len(self._data)
         if next_pos > len_data:
-            raise Exception(f"attempted to read position {next_pos}, but the sml file is only {len_data} long")
+            raise errors.DataMissingException(next_pos, len_data)
         rv = self._data[self._pointer:next_pos]
         return rv
 
     def read_sml_file(self):
         if self._pointer != 0:
-            raise Exception("can only called once")
+            return
+
         count = 0
         while True:
             count += 1
@@ -436,7 +437,7 @@ class SmlReader:
     def _expect_list(self):
         entry = self._advance(1)
         if entry != "7":
-            raise Exception("expected a list")
+            raise errors.NotAListException(self._pointer)
         list_length = self._advance(1)  # second nibble contains the length of the entry:
         list_length = hex_to_int(list_length)  # in elements
         return list_length
