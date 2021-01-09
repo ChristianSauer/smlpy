@@ -28,27 +28,33 @@ class PortSettings:
     port: str
     baudrate: int
     bytesize: Literal[5, 6, 7, 8]
-    parity: Literal['N', 'E', 'O', 'M', 'S']
+    parity: Literal["N", "E", "O", "M", "S"]
     stopbits: Union[int, float]
     wait_time: int = WAIT_TIME
 
 
-async def receive(default_portsettings: PortSettings,
-                  queue: asyncio.Queue, ):
+async def receive(
+    default_portsettings: PortSettings,
+    queue: asyncio.Queue,
+):
     """
     Asynchronously receives data from the given port at the settings (for an explanation see pyserial) and puts them
     into the queue.
     wait_time is used to control the time given to accumulate data. it should be enough
     """
-    reader, _ = await serial_asyncio.open_serial_connection(url=default_portsettings.port,
-                                                            baudrate=default_portsettings.baudrate,
-                                                            bytesize=default_portsettings.bytesize,
-                                                            parity=default_portsettings.parity,
-                                                            stopbits=default_portsettings.stopbits)
+    reader, _ = await serial_asyncio.open_serial_connection(
+        url=default_portsettings.port,
+        baudrate=default_portsettings.baudrate,
+        bytesize=default_portsettings.bytesize,
+        parity=default_portsettings.parity,
+        stopbits=default_portsettings.stopbits,
+    )
     return _read_from_port(reader, queue, default_portsettings.wait_time)
 
 
-async def _read_from_port(reader: asyncio.StreamReader, queue: asyncio.Queue, wait_time):
+async def _read_from_port(
+    reader: asyncio.StreamReader, queue: asyncio.Queue, wait_time
+):
     data = ""
 
     start = sml_reader.msg_start + sml_reader.msg_version_1
@@ -58,7 +64,7 @@ async def _read_from_port(reader: asyncio.StreamReader, queue: asyncio.Queue, wa
         msg = await reader.read(1000 * wait_time)
 
         # we need to find a start and an end in this mess.
-        received_data = codecs.encode(msg, 'hex').decode('ascii')
+        received_data = codecs.encode(msg, "hex").decode("ascii")
 
         logger.info(f"msg length {len(msg)} msg {received_data}")
 
@@ -66,8 +72,10 @@ async def _read_from_port(reader: asyncio.StreamReader, queue: asyncio.Queue, wa
         start_pos = data.find(start)
         end_pos = data.find(end)
         if start_pos != -1 and end_pos != -1:
-            await queue.put(data[start_pos: end_pos + len(end) + 6])
-            data = data[end_pos + 4:]
+            value = data[start_pos : end_pos + len(end) + 6]
+            await queue.put(value)
+
+            data = data[end_pos + 4 :]
             logger.debug("full message received")
         elif start_pos != -1 and end_pos == -1:
             logger.debug("partial message received", data=received_data)
@@ -93,9 +101,9 @@ async def read(queue: asyncio.Queue):
 
             result = reader.read_sml_file()
 
-            logger.trace(result.dump_to_json())
+    logger.trace(result.dump_to_json())
 
-            yield result
+    yield result
 
 
 async def main(port_settings: PortSettings) -> typing.AsyncIterator[sml_reader.SmlFile]:
@@ -113,12 +121,14 @@ async def main(port_settings: PortSettings) -> typing.AsyncIterator[sml_reader.S
 
 
 async def dump_results():
-    default_port_settings = PortSettings(port='/dev/ttyUSB0',
-                                         baudrate=9600,
-                                         bytesize=serial.EIGHTBITS,
-                                         parity=serial.PARITY_NONE,
-                                         stopbits=serial.STOPBITS_ONE,
-                                         wait_time=WAIT_TIME)
+    default_port_settings = PortSettings(
+        port="/dev/ttyUSB0",
+        baudrate=9600,
+        bytesize=serial.EIGHTBITS,
+        parity=serial.PARITY_NONE,
+        stopbits=serial.STOPBITS_ONE,
+        wait_time=WAIT_TIME,
+    )
     async for result in main(default_port_settings):
         logger.info(result.dump_to_json())
 

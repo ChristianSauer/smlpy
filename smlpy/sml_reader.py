@@ -29,7 +29,10 @@ _integer_hex_marker = {
     "52": (1, True),
     "53": (2, True),
     "55": (4, True),
-    "56": (5, True),  # this unit is not described by the current standards, but my ehz-k reports them
+    "56": (
+        5,
+        True,
+    ),  # this unit is not described by the current standards, but my ehz-k reports them
     "59": (8, True),
 }
 
@@ -48,6 +51,7 @@ class SmlMessageEnvelope:
 
 class SmlMessageBody:
     """purely a dummy"""
+
     pass
 
 
@@ -106,13 +110,22 @@ class SmlGetListRes(SmlMessageBody):
 
 
 class SmlTime:
-    def __init__(self, dt: datetime.datetime = None, epoch: int = None, elapsed_seconds: int = None):
+    def __init__(
+        self,
+        dt: datetime.datetime = None,
+        epoch: int = None,
+        elapsed_seconds: int = None,
+    ):
         if epoch is not None:
-            self.datetime = datetime.datetime.fromtimestamp(epoch, datetime.timezone.utc)
+            self.datetime = datetime.datetime.fromtimestamp(
+                epoch, datetime.timezone.utc
+            )
         elif dt is not None:
             self.datetime = dt
         elif elapsed_seconds is not None:
-            self.datetime = datetime.datetime.utcnow() - datetime.timedelta(seconds=elapsed_seconds)
+            self.datetime = datetime.datetime.utcnow() - datetime.timedelta(
+                seconds=elapsed_seconds
+            )
         else:
             raise AttributeError("choose epoch or datetime")
 
@@ -144,11 +157,10 @@ class SmlFile:
 
     def dump_to_json(self):
         jsons.set_serializer(sml_val_list_entry_serializer, SmlValListEntry)
-        return jsons.dumps(self, jdkwargs= {"indent":2, "ensure_ascii":False})
+        return jsons.dumps(self, jdkwargs={"indent": 2, "ensure_ascii": False})
 
 
 class SmlReader:
-
     def __init__(self, data: str):
         self._data = data.lower().strip()
         self._pointer = 0
@@ -162,7 +174,7 @@ class SmlReader:
         len_data = len(self._data)
         if next_pos > len_data:
             raise errors.DataMissingException(next_pos, len_data)
-        rv = self._data[self._pointer:next_pos]
+        rv = self._data[self._pointer : next_pos]
         self._pointer = next_pos
         return rv
 
@@ -179,7 +191,7 @@ class SmlReader:
         len_data = len(self._data)
         if next_pos > len_data:
             raise errors.DataMissingException(next_pos, len_data)
-        rv = self._data[self._pointer:next_pos]
+        rv = self._data[self._pointer : next_pos]
         return rv
 
     def read_sml_file(self):
@@ -203,7 +215,7 @@ class SmlReader:
 
             self._advance_and_compare("1a")  # see page 78 Table position 6
 
-            _ = self._advance(2) # no idea what to do with these num_escape_bytes
+            _ = self._advance(2)  # no idea what to do with these num_escape_bytes
 
             _ = self._advance(4)  # should be the crc, checksum
 
@@ -302,7 +314,9 @@ class SmlReader:
             inner_message.list_name = self._handle_value_field()
             inner_message.act_sensor_time = self._handle_sml_time()
             inner_message.val_list = self._handle_val_list()
-            inner_message.list_signature = self._handle_value_field()  # even if this has a value its an string
+            inner_message.list_signature = (
+                self._handle_value_field()
+            )  # even if this has a value its an string
             inner_message.act_gateway_time = self._handle_sml_time()
             message.message_body = inner_message
             return message
@@ -414,7 +428,9 @@ class SmlReader:
         for outer in range(list_length):
             inner_length = self._expect_list()
             if inner_length != 7:
-                raise Exception(f"valListEntry should have 7 elements, but has {inner_length}")
+                raise Exception(
+                    f"valListEntry should have 7 elements, but has {inner_length}"
+                )
             logger.debug("processing list element {outer}", outer=outer)
 
             entry = SmlValListEntry()
@@ -438,7 +454,9 @@ class SmlReader:
         entry = self._advance(1)
         if entry != "7":
             raise errors.NotAListException(self._pointer)
-        list_length = self._advance(1)  # second nibble contains the length of the entry:
+        list_length = self._advance(
+            1
+        )  # second nibble contains the length of the entry:
         list_length = hex_to_int(list_length)  # in elements
         return list_length
 
@@ -474,11 +492,11 @@ def hex_to_int(byte: str) -> int:
 def chunks(lst, n):
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
-        yield lst[i:i + n]
+        yield lst[i : i + n]
 
 
 def hex_to_binary_with_leading_zeroes(hex: str):
-    return bin(int('1' + hex, 16))[3:]
+    return bin(int("1" + hex, 16))[3:]
 
 
 def hex_to_binary_without_leading_zeroes(hex: str) -> str:
