@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "smlpy"
-version = "0.1.0"
+version = "0.2.0"
 description = """smlpy enables reading of smart meter language (sml) data from a smart power meter.
 You need a working IR-reading device for this, e.g. https://shop.weidmann-elektronik.de/index.php?page=product&info=24
 which must be connected to an USB port.
