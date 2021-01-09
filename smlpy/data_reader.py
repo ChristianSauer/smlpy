@@ -86,6 +86,36 @@ async def _read_from_port(
         await asyncio.sleep(WAIT_TIME)
 
 
+async def _read_from_port_once(reader: asyncio.StreamReader, wait_time) -> str:
+    data = ""
+
+    start = sml_reader.msg_start + sml_reader.msg_version_1
+    end = sml_reader.msg_end + "1a"  # standard... I love sml!
+
+    while True:
+        msg = await reader.read(1000 * wait_time)
+
+        # we need to find a start and an end in this mess.
+        received_data = codecs.encode(msg, "hex").decode("ascii")
+
+        logger.info(f"msg length {len(msg)} msg {received_data}")
+
+        data += received_data
+        start_pos = data.find(start)
+        end_pos = data.find(end)
+        if start_pos != -1 and end_pos != -1:
+            logger.debug("full message received")
+            value = data[start_pos : end_pos + len(end) + 6]
+            return value
+        elif start_pos != -1 and end_pos == -1:
+            logger.debug("partial message received", data=received_data)
+        else:
+            logger.debug("end but no start")
+            data = ""
+
+        await asyncio.sleep(WAIT_TIME)
+
+
 async def read(queue: asyncio.Queue):
     """Asynchronously reads data from the queue and tries to read them into an SmlFile"""
     while True:
@@ -100,6 +130,27 @@ async def read(queue: asyncio.Queue):
             reader = sml_reader.SmlReader(item)
 
             result = reader.read_sml_file()
+
+            logger.trace(result.dump_to_json())
+
+            yield result
+
+
+async def read_one(default_portsettings: PortSettings) -> sml_reader.SmlFile:
+    """
+    Asynchronously reads one message from the smart meter and returns the result
+    """
+    reader, _ = await serial_asyncio.open_serial_connection(
+        url=default_portsettings.port,
+        baudrate=default_portsettings.baudrate,
+        bytesize=default_portsettings.bytesize,
+        parity=default_portsettings.parity,
+        stopbits=default_portsettings.stopbits,
+    )
+    data = await _read_from_port_once(reader, default_portsettings.wait_time)
+    reader = sml_reader.SmlReader(data)
+
+    result = reader.read_sml_file()
 
     logger.trace(result.dump_to_json())
 
