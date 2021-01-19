@@ -34,8 +34,8 @@ class PortSettings:
 
 
 async def receive(
-    default_portsettings: PortSettings,
-    queue: asyncio.Queue,
+        default_portsettings: PortSettings,
+        queue: asyncio.Queue,
 ):
     """
     Asynchronously receives data from the given port at the settings (for an explanation see pyserial) and puts them
@@ -53,7 +53,7 @@ async def receive(
 
 
 async def _read_from_port(
-    reader: asyncio.StreamReader, queue: asyncio.Queue, wait_time
+        reader: asyncio.StreamReader, queue: asyncio.Queue, wait_time
 ):
     data = ""
 
@@ -72,10 +72,10 @@ async def _read_from_port(
         start_pos = data.find(start)
         end_pos = data.find(end)
         if start_pos != -1 and end_pos != -1:
-            value = data[start_pos : end_pos + len(end) + 6]
+            value = data[start_pos: end_pos + len(end) + 6]
             await queue.put(value)
 
-            data = data[end_pos + 4 :]
+            data = data[end_pos + 4:]
             logger.debug("full message received")
         elif start_pos != -1 and end_pos == -1:
             logger.debug("partial message received", data=received_data)
@@ -105,7 +105,7 @@ async def _read_from_port_once(reader: asyncio.StreamReader, wait_time) -> str:
         end_pos = data.find(end)
         if start_pos != -1 and end_pos != -1:
             logger.debug("full message received")
-            value = data[start_pos : end_pos + len(end) + 6]
+            value = data[start_pos: end_pos + len(end) + 6]
             return value
         elif start_pos != -1 and end_pos == -1:
             logger.debug("partial message received", data=received_data)
@@ -154,7 +154,7 @@ async def read_one(default_portsettings: PortSettings) -> sml_reader.SmlFile:
 
     logger.trace(result.dump_to_json())
 
-    yield result
+    return result
 
 
 async def main(port_settings: PortSettings) -> typing.AsyncIterator[sml_reader.SmlFile]:
