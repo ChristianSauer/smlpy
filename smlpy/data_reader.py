@@ -140,19 +140,22 @@ async def read_one(default_portsettings: PortSettings) -> sml_reader.SmlFile:
     """
     Asynchronously reads one message from the smart meter and returns the result
     """
-    reader, _ = await serial_asyncio.open_serial_connection(
+    serial_reader, serial_writer = await serial_asyncio.open_serial_connection(
         url=default_portsettings.port,
         baudrate=default_portsettings.baudrate,
         bytesize=default_portsettings.bytesize,
         parity=default_portsettings.parity,
         stopbits=default_portsettings.stopbits,
     )
-    data = await _read_from_port_once(reader, default_portsettings.wait_time)
-    reader = sml_reader.SmlReader(data)
+    try:
+        data = await _read_from_port_once(serial_reader, default_portsettings.wait_time)
+        reader = sml_reader.SmlReader(data)
 
-    result = reader.read_sml_file()
+        result = reader.read_sml_file()
 
-    logger.trace(result.dump_to_json())
+        logger.trace(result.dump_to_json())
+    finally:
+        serial_writer.close() # we need to do this, otherwise we leak file handles
 
     return result
 
